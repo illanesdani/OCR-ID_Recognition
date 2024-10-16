@@ -19,7 +19,7 @@ pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tessera
 # Selecciona una imagen de las existentes aleatoriamente para analizar
 # **
 def random_image():
-    num = random.randint(1, 10)
+    num = random.randint(1, 11)
     rutas = {
         1: "DocumentosPrueba/dni_argentina_nuevo.png",
         2: "DocumentosPrueba/dni_argentina.jpg",
@@ -30,7 +30,8 @@ def random_image():
         7: "DocumentosPrueba/dni_peru.png",
         8: "DocumentosPrueba/dni_tenesse.png",
         9: "DocumentosPrueba/dni_uruguay.jpg",
-        10: "DocumentosPrueba/dni_usa.jpg"
+        10: "DocumentosPrueba/dni_usa.jpg",
+        11: "DocumentosPrueba/dni-dani.jpeg"
     }
 
 
@@ -112,75 +113,18 @@ def image_boxes(data_image, processed_img, image_path):
     cv2.imwrite('ImagenRectangulosColor.jpg',imgColor )
 
 
-
-
-# **
-# Procesa el texto obtenido y lo convierte a JSON dependiendo del pais
-# **
-def process_image_text(text):
-
-
-    global type
-    global tipo_documento
-
-
-    #USA es el unico pais con formato distinto entonces se procesa aparte
-    usa_keywords=["USA","United States Of America","United States of America"]
-   
-    if any(keyword in text for keyword in usa_keywords):
-        tipo_documento = "USA"
-    elif "DNI" in text or "Documento Nacional de Identidad" in text:
-        tipo_documento = "DNI"
-    elif "Pasaporte" in text or "Passport" in text:
-        tipo_documento = "Pasaporte"
-    else:
-        tipo_documento = "Otro"
-   
-   
-    keywords=["Nombre","Nombres","Apellido","Apellidos","ID","Documento","RUN","RUT", "Nacimiento", "Fecha de Nacimiento"]
-    #futuro JSON donde se guardarán los datos
-   
-    data={}
-    lines = text.split('\n')
-   
-    data["TipoDocumento"] = tipo_documento
-
-
-    if tipo_documento == "USA":
-            for i, line in enumerate(lines):
-                if "Name" in line:
-                    # Las primeras dos líneas después del título son el nombre
-                    data["Nombre"] = " ".join(lines[i + 1:i + 3]).strip()
-                elif "Address" in line:
-                    # Las siguientes tres líneas son la dirección
-                    data["Direccion"] = " ".join(lines[i + 1:i + 4]).strip()
-                elif "License" in line:
-                    # La siguiente línea es el número de licencia
-                    data["NumeroLicencia"] = lines[i + 1].strip()
-                elif "DOB" in line or "Date of Birth" in line:
-                    # La siguiente línea es la fecha de nacimiento
-                    data["FechaNacimiento"] = lines[i + 1].strip()
-
-
-    else:
-        keywords = ["Nombre", "Nombres", "Apellido", "Apellidos", "ID", "Documento", "RUN", "RUT", "Nacimiento", "Fecha de Nacimiento"]
-        for i, line in enumerate(lines):
-            for keyword in keywords:
-                if keyword in line:
-                    if i + 1 < len(lines):
-                        # Extraer la línea siguiente al título como el valor
-                        data[keyword] = lines[i + 1].strip()
-
-
-
-
-    return data
-
-
 def analyze_text_ollama(text):
     #modelo de ollama que analizará el prompt
     model="llama2"
-    prompt= f"Please extract dob, name and lastname and other aditional information that might be useful from this messy text extracted from an ID and convert it into a json : \n{text}"
+
+    prompt = (
+    "Extract the following information from the provided text, making sure that makes sense with the corresponding title" 
+    "and ignore single letters or rare non-letter characters (as long as they are not on the date): "
+    "Nombre, Apellido, FechaDeNacimiento, TipoDocumento, and Documento. "
+    "Please return the data in a JSON format with the exact field names specified before. "
+    "Only provide the JSON response without any additional text. Here is the text:\n"
+    f"{text}"
+)
 
     response = ollama.chat(model=model, messages=[
         {
@@ -190,38 +134,22 @@ def analyze_text_ollama(text):
     ])
 
     extracted_data = response['message']['content']
-    print(response['message']['content'])
     return extracted_data
 
-def dni_to_json(image_path):
-    text = extract_text_from_image(image_path)
-    dni_data= process_image_text(text)
-    json_ollama= analyze_text_ollama(text)
 
-    dni_json = json.dumps(dni_data, indent=4, ensure_ascii=False)
-
-    return dni_json
+def extract_json(text):
+    # Usar una expresión regular para encontrar el JSON en el texto
+    match = re.search(r'{.*}', text, re.DOTALL)
+    if match:
+        json_str = match.group(0)
+        # Convertir el string JSON a un objeto Python (dict)
+        return json.loads(json_str)
+    else:
+        return None  # Retornar None si no se encuentra un JSON
 
 
 image_path = random_image()
-dni_json = dni_to_json(image_path)
-print(dni_json)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-   
-
-
+text = extract_text_from_image(image_path)
+ollama_text= analyze_text_ollama(text)
+final_json = extract_json(ollama_text)
+print(final_json)
