@@ -7,6 +7,7 @@ import random
 from pytesseract import Output
 import numpy as np
 import pytesseract.pytesseract
+import ollama
 
 
 #configuracion de la orientacion de la pagina y el modelo de ocr
@@ -176,15 +177,28 @@ def process_image_text(text):
     return data
 
 
+def analyze_text_ollama(text):
+    #modelo de ollama que analizará el prompt
+    model="llama2"
+    prompt= f"Please extract dob, name and lastname and other aditional information that might be useful from this messy text extracted from an ID and convert it into a json : \n{text}"
 
+    response = ollama.chat(model=model, messages=[
+        {
+            'role':'user',
+            'content':prompt
+        }
+    ])
+
+    extracted_data = response['message']['content']
+    print(response['message']['content'])
+    return extracted_data
 
 def dni_to_json(image_path):
     text = extract_text_from_image(image_path)
     dni_data= process_image_text(text)
-
+    json_ollama= analyze_text_ollama(text)
 
     dni_json = json.dumps(dni_data, indent=4, ensure_ascii=False)
-
 
     return dni_json
 
