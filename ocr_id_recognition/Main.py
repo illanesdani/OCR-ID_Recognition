@@ -12,6 +12,8 @@ from dateutil import parser
 from typing import Annotated
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.responses import JSONResponse
+import tempfile
+import os
 
 app = FastAPI()
 
@@ -48,7 +50,6 @@ def extract_text_from_image(image_path):
    
     processed_img= preprocess_image(image_path)
 
-
     # data_image= pytesseract.image_to_data(processed_img, output_type=Output.DICT)
    
     # image_boxes(data_image, processed_img, image_path)
@@ -70,7 +71,7 @@ def extract_text_from_image(image_path):
 
 def analyze_text_ollama(text):
     #modelo de ollama que analizará el prompt
-    model="llama2"
+    model="mistral"
 
     prompt = (
     "Please extract the following information from the provided text while ensuring it corresponds accurately to the titles: "
@@ -154,14 +155,13 @@ def final_json(extracted_data):
             tipoDocumento = analyze_id_type(extracted_data["TipoDocumento"])
             new_json["TipoDocumento"] = tipoDocumento
 
-        new_json_str = json.dumps(new_json, indent=4, ensure_ascii=False)
-        return new_json_str
+        return new_json
     else:
         return "No se encontró un JSON válido."
 
 
-def response(file):
-    text = extract_text_from_image(file.file)
+def response(image_path):
+    text = extract_text_from_image(image_path)
     ollama_text= analyze_text_ollama(text)
     ollama_json = extract_json(ollama_text)
     id_json = final_json(ollama_json)
@@ -171,7 +171,29 @@ def response(file):
 async def analyze_id(file: UploadFile):
     try:
         contents = await file.read()
-        id_json = response(contents)
+        nparr = np.frombuffer(contents, np.uint8)
+        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)  # Decodifica la imagen
+        
+        if img is None:
+            raise HTTPException(status_code=422, detail="Error al decodificar la imagen")
+        
+        
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as temp_file:
+            cv2.imwrite(temp_file.name, img)
+            temp_file_path = temp_file.name
+
+        id_json = response(temp_file_path)
         return JSONResponse(content=id_json, status_code=200)
+
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error al procesar el archivo: {str(e)}")
+    finally:
+        if temp_file_path:
+            os.remove(temp_file_path)
+
+@app.get("/test")
+def test(name = None):
+    if name is None:
+        return "Hola mundo"
+    else:
+        return "Hola" + " " + name
