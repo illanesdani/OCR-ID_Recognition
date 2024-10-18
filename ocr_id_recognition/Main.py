@@ -9,38 +9,15 @@ import pytesseract.pytesseract
 import ollama
 from datetime import datetime
 from dateutil import parser
+from typing import Annotated
+from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi.responses import JSONResponse
 
+app = FastAPI()
 
 #configuracion de la orientacion de la pagina y el modelo de ocr
 custom_config = r"--psm 11 --oem 3"
 pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
-
-
-# **
-# Selecciona una imagen de las existentes aleatoriamente para analizar
-# **
-def random_image():
-    num = random.randint(1, 11)
-    rutas = {
-        1: "DocumentosPrueba/dni_argentina_nuevo.png",
-        2: "DocumentosPrueba/dni_argentina.jpg",
-        3: "DocumentosPrueba/dni_brasil.jpg",
-        4: "DocumentosPrueba/dni_chile.png",
-        5: "DocumentosPrueba/dni_espana.jpg",
-        6: "DocumentosPrueba/dni_newYork.jpg",
-        7: "DocumentosPrueba/dni_peru.png",
-        8: "DocumentosPrueba/dni_tenesse.png",
-        9: "DocumentosPrueba/dni_uruguay.jpg",
-        10: "DocumentosPrueba/dni_usa.jpg",
-        11: "DocumentosPrueba/dni-dani.jpeg"
-    }
-
-
-    # print(rutas[num])
-    return rutas[11]
-
-
-
 
 # **
 # Lee la imagen y la convierte a escala de grises y luego la hace binaria
@@ -182,12 +159,19 @@ def final_json(extracted_data):
     else:
         return "No se encontró un JSON válido."
 
-image_path = random_image()
-text = extract_text_from_image(image_path)
-ollama_text= analyze_text_ollama(text)
 
-ollama_json = extract_json(ollama_text)
-print(ollama_json)
+def response(file):
+    text = extract_text_from_image(file.file)
+    ollama_text= analyze_text_ollama(text)
+    ollama_json = extract_json(ollama_text)
+    id_json = final_json(ollama_json)
+    return id_json
 
-final_json = final_json(ollama_json)
-print(final_json)
+@app.post("/")
+async def analyze_id(file: UploadFile):
+    try:
+        contents = await file.read()
+        id_json = response(contents)
+        return JSONResponse(content=id_json, status_code=200)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error al procesar el archivo: {str(e)}")
