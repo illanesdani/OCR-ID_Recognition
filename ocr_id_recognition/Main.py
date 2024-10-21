@@ -76,7 +76,8 @@ def analyze_text_ollama(text):
     prompt = (
     "Please extract the following information from the provided text while ensuring it corresponds accurately to the titles: "
     "Name, Lastname, DateOfBirth, DocumentType, and DocumentNumber. "
-    "Transform the date of birth into a string format, such as '10 May 1998', using the month name in English. "
+    "Transform the date of birth into a string format, such as '10 May 1998', using the month name in English, "
+    "and make sure that document number doesnt have any letters, just numbers"
     "Also, ignore any single letters or unusual non-letter characters. "
     "Return the extracted data in JSON format with the exact field names specified above. "
     "Only provide the JSON response without any additional text. Here is the text:\n"
@@ -108,7 +109,7 @@ def extract_json(text):
 def analyze_id_type(id_type):
     id_type = id_type.lower()  # Convertimos todo el texto a minúsculas para facilitar comparaciones
     
-    if "documento nacional de identidad" in id_type or "dni" in id_type or re.search(r'documento', id_type):
+    if "documento nacional de identidad" in id_type or "dni" in id_type or "documento" in id_type or re.search(r'documento', id_type):
         return "DNI"
     
     elif "cni" in id_type or "carte nationale d'identité" in id_type or "carte nationale" in id_type or re.search(r'cédula', id_type):
